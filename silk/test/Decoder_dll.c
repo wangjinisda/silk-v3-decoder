@@ -99,6 +99,75 @@ unsigned long GetHighResolutionTime() /* O: time in usec*/
 /* Seed for the random number generator, which is used for simulating packet loss */
 static SKP_int32 rand_seed = 1;
 
+size_t readFileAsByteArray(void *ptr, size_t lenOfChar, FILE *fp)
+{
+
+    /*
+    fseek(fp, 0, SEEK_END); 
+    size = ftell(fp); 
+    fseek(fp, 0, SEEK_SET); 
+    */
+    size_t fileSize;
+    fileSize =  fread(ptr, sizeof(SKP_uint8), lenOfChar, fp);
+    return fileSize;
+}
+
+static SKP_uint8 *jBuffer = NULL;
+static size_t jSize = 0;
+static SKP_uint8 *JPayload;
+static size_t  currentPos = 0;
+static size_t  lenForRead = 0; 
+
+static SKP_int16 *outArr;
+
+void init()
+{
+
+}
+
+size_t getCharBufferFromCurrentPos(char *buffer, size_t len)
+{
+    if(jBuffer !=NULL){
+        lenForRead = 1;
+        size_t byteLen = len * lenForRead*sizeof(char);
+        memcpy(buffer, &jBuffer[currentPos], byteLen);
+        currentPos += byteLen;
+        return len;
+    }
+    return 0;
+}
+
+
+size_t  getShortBufferFromCurrentPos(SKP_int16 *buffer, size_t len)
+{
+    if(jBuffer !=NULL){
+        lenForRead = 2;
+        size_t byteLen = len * lenForRead*sizeof(char);
+        SKP_int8 jBuf8[ len * lenForRead ];
+        //SKP_int16 jBuf16;
+        memcpy(jBuf8, &jBuffer[currentPos], byteLen);
+        currentPos += byteLen;
+        for( int i = 0; i < len; i++ ) {
+             buffer[i] = (SKP_int16)((jBuf8[ 2*i +1 ] << 8 ) | jBuf8[ 2 * i ]);
+        }   
+        return len;
+    }
+    return 0;
+}
+
+
+size_t getByteBufferFromCurrentPos(SKP_uint8 *buffer, size_t len)
+{
+    if(jBuffer !=NULL){
+        lenForRead = 1;
+        size_t byteLen = len * lenForRead * sizeof(char);
+        memcpy(buffer, &jBuffer[currentPos], byteLen);
+        currentPos += byteLen;
+        return len;
+    }
+    return 0;
+}
+
 static void print_usage(char* argv[]) {
     printf( "\nVersion:20160922    Build By kn007 (kn007.net)");
     printf( "\nGithub: https://github.com/kn007/silk-v3-decoder\n");
@@ -181,13 +250,38 @@ int main( int argc, char* argv[] )
         exit( 0 );
     }
 
+
+    fseek(bitInFile, 0, SEEK_END); 
+    size_t jFileSize = ftell(bitInFile); 
+    fseek(bitInFile, 0, SEEK_SET);
+    jBuffer = malloc(jFileSize);
+    jSize = readFileAsByteArray(jBuffer, jFileSize, bitInFile);
+    printf( "j-test:  file read    bufer first:%i  file len: %d\n", jBuffer[0], jFileSize);
+    // add 
+    SKP_uint8 JPayloadBuf[    MAX_BYTES_PER_FRAME * MAX_INPUT_FRAMES * ( MAX_LBRR_DELAY + 1 ) ];
+    JPayload = JPayloadBuf;
+
+    fseek(bitInFile, 0, SEEK_SET);
+
     /* Check Silk header */
     {
         char header_buf[ 50 ];
-        fread(header_buf, sizeof(char), 1, bitInFile);
+        //fread(header_buf, sizeof(char), 1, bitInFile);
+         // for test from jin
+        char jHeader_buf[50];
+        getCharBufferFromCurrentPos(header_buf, 1);
+
+        printf( "j-test:    header_buf        %s\n", header_buf );
+        printf( "j-test:    jHeader_buf       %s\n", jHeader_buf );
+
         header_buf[ strlen( "" ) ] = '\0'; /* Terminate with a null character */
         if( strcmp( header_buf, "" ) != 0 ) {
-           counter = fread( header_buf, sizeof( char ), strlen( "!SILK_V3" ), bitInFile );
+           //counter = fread( header_buf, sizeof( char ), strlen( "!SILK_V3" ), bitInFile );
+           // for test from jin
+           getCharBufferFromCurrentPos(header_buf, strlen( "!SILK_V3" ));
+           printf( "j-test:       header_buf     %s\n", header_buf );
+           printf( "j-test:       jHeader_buf    %s\n", jHeader_buf );
+
            header_buf[ strlen( "!SILK_V3" ) ] = '\0'; /* Terminate with a null character */
            if( strcmp( header_buf, "!SILK_V3" ) != 0 ) {
                /* Non-equal strings */
@@ -195,7 +289,14 @@ int main( int argc, char* argv[] )
                exit( 0 );
            }
         } else {
-           counter = fread( header_buf, sizeof( char ), strlen( "#!SILK_V3" ), bitInFile );
+           //counter = fread( header_buf, sizeof( char ), strlen( "#!SILK_V3" ), bitInFile );
+
+           // for test from jin
+           getCharBufferFromCurrentPos(header_buf, strlen( "#!SILK_V3" ));
+
+           printf( "j-test:       header_buf     %s\n", header_buf );
+           printf( "j-test:       jHeader_buf    %s\n", jHeader_buf );
+
            header_buf[ strlen( "#!SILK_V3" ) ] = '\0'; /* Terminate with a null character */
            if( strcmp( header_buf, "#!SILK_V3" ) != 0 ) {
                /* Non-equal strings */
@@ -241,12 +342,22 @@ int main( int argc, char* argv[] )
     /* Simulate the jitter buffer holding MAX_FEC_DELAY packets */
     for( i = 0; i < MAX_LBRR_DELAY; i++ ) {
         /* Read payload size */
-        counter = fread( &nBytes, sizeof( SKP_int16 ), 1, bitInFile );
+        //counter = fread( &nBytes, sizeof( SKP_int16 ), 1, bitInFile );
+        counter = getShortBufferFromCurrentPos(&nBytes, 1);
+ 
+        printf( "j-test:       counter    %i\n", (int)counter );
+
 #ifdef _SYSTEM_IS_BIG_ENDIAN
         swap_endian( &nBytes, 1 );
 #endif
         /* Read payload */
-        counter = fread( payloadEnd, sizeof( SKP_uint8 ), nBytes, bitInFile );
+        //counter = fread( payloadEnd, sizeof( SKP_uint8 ), nBytes, bitInFile );
+        //printf( "j-test:       counter primary     %i\n", counter );
+        // for test from jin
+        counter = getByteBufferFromCurrentPos(payloadEnd, nBytes);
+        //payloadEnd = jBuf8_u;
+        //printf( "j-test:       jBuf8_u     %hu\n", jBuf8_u[0] );
+        printf( "j-test:       counter     %i\n", counter );
 
         if( ( SKP_int16 )counter < nBytes ) {
             break;
@@ -258,7 +369,8 @@ int main( int argc, char* argv[] )
 
     while( 1 ) {
         /* Read payload size */
-        counter = fread( &nBytes, sizeof( SKP_int16 ), 1, bitInFile );
+        //counter = fread( &nBytes, sizeof( SKP_int16 ), 1, bitInFile );
+        counter = getShortBufferFromCurrentPos(&nBytes, 1);
 #ifdef _SYSTEM_IS_BIG_ENDIAN
         swap_endian( &nBytes, 1 );
 #endif
@@ -267,7 +379,8 @@ int main( int argc, char* argv[] )
         }
 
         /* Read payload */
-        counter = fread( payloadEnd, sizeof( SKP_uint8 ), nBytes, bitInFile );
+        // counter = fread( payloadEnd, sizeof( SKP_uint8 ), nBytes, bitInFile );
+        counter = getByteBufferFromCurrentPos(payloadEnd, nBytes);
         if( ( SKP_int16 )counter < nBytes ) {
             break;
         }
@@ -354,7 +467,8 @@ int main( int argc, char* argv[] )
 #ifdef _SYSTEM_IS_BIG_ENDIAN
         swap_endian( out, tot_len );
 #endif
-        fwrite( out, sizeof( SKP_int16 ), tot_len, speechOutFile );
+        size_t jlen = fwrite( out, sizeof( SKP_int16 ), tot_len, speechOutFile );
+        printf( "j-test:       out len    %i\n", (int)jlen );
 
         /* Update buffer */
         totBytes = 0;
@@ -446,7 +560,9 @@ int main( int argc, char* argv[] )
 #ifdef _SYSTEM_IS_BIG_ENDIAN
         swap_endian( out, tot_len );
 #endif
-        fwrite( out, sizeof( SKP_int16 ), tot_len, speechOutFile );
+        //fwrite( out, sizeof( SKP_int16 ), tot_len, speechOutFile );
+        size_t jlen = fwrite( out, sizeof( SKP_int16 ), tot_len, speechOutFile );
+        printf( "j-test:       out len    %i\n", (int)jlen );
 
         /* Update Buffer */
         totBytes = 0;
@@ -468,6 +584,7 @@ int main( int argc, char* argv[] )
 
     /* Free decoder */
     free( psDec );
+    free( jBuffer );
 
     /* Close files */
     fclose( speechOutFile );
@@ -483,9 +600,4 @@ int main( int argc, char* argv[] )
         printf( "%.3f %.3f %d\n", 1e-6 * tottime, 1e-4 * tottime / filetime, totPackets );
     }
     return 0;
-}
-
-int audiobytesConverter()
-{
-
 }

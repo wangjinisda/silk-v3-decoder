@@ -117,7 +117,7 @@ LDLIBDIRS = ./
 # Rules
 default: all
 
-all: $(TARGET) decoder
+all: $(TARGET) decoderdll
 
 lib: $(TARGET)
 
