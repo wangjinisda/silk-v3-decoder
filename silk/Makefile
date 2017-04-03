@@ -106,6 +106,9 @@ DECODER_OBJS := $(patsubst %.c,%$(OBJSUFFIX),$(DECODER_SRCS_C))
 SIGNALCMP_SRCS_C = test/signalCompare.c
 SIGNALCMP_OBJS := $(patsubst %.c,%$(OBJSUFFIX),$(SIGNALCMP_SRCS_C))
 
+DECODER_SRCS_DLL_C = test/Decoder_dll.c
+DECODER_DLL_OBJS := $(patsubst %.c,%$(OBJSUFFIX),$(DECODER_SRCS_DLL_C))
+
 LIBS = \
 	$(LIB_NAME)
 
@@ -130,8 +133,12 @@ decoder$(EXESUFFIX): $(DECODER_OBJS)
 signalcompare$(EXESUFFIX): $(SIGNALCMP_OBJS)
 	$(LINK.o.cmdline)
 
+decoderdll$(EXESUFFIX): $(DECODER_DLL_OBJS)
+	$(LINK.o.cmdline)
+
 clean:
 	$(RM) $(TARGET)* $(OBJS) $(ENCODER_OBJS) $(DECODER_OBJS) \
 		  $(SIGNALCMP_OBJS) $(TEST_OBJS) \
-		  encoder$(EXESUFFIX) decoder$(EXESUFFIX) signalcompare$(EXESUFFIX)
+		  encoder$(EXESUFFIX) decoder$(EXESUFFIX) signalcompare$(EXESUFFIX) \
+		  decoderdll$(EXESUFFIX) $(DECODER_DLL_OBJS)
 
