@@ -15,6 +15,7 @@ EXESUFFIX =
 LIBPREFIX = lib
 LIBSUFFIX = .a
 OBJSUFFIX = .o
+WINDLLSUFFIX = .dll
 
 CC     = $(TOOLCHAIN_PREFIX)gcc$(TOOLCHAIN_SUFFIX)
 CXX    = $(TOOLCHAIN_PREFIX)g++$(TOOLCHAIN_SUFFIX)
@@ -58,6 +59,7 @@ LDLIBS  += $(call ldlibs-from-libs,$(LIBS))
 # add for compile in cgwin
 LDLIBS += -static-libgcc
 LDLIBS += -static-libstdc++
+#LDLIBS += -shared
 
 COMPILE.c.cmdline   = $(CC) -c $(CFLAGS) $(ADDED_CFLAGS) -o $@ $<
 COMPILE.S.cmdline   = $(CC) -c $(CFLAGS) $(ADDED_CFLAGS) -o $@ $<
@@ -65,6 +67,8 @@ COMPILE.cpp.cmdline = $(CXX) -c $(CFLAGS) $(ADDED_CFLAGS) -o $@ $<
 LINK.o              = $(CXX) $(LDPREFLAGS) $(LDFLAGS)
 LINK.o.cmdline      = $(LINK.o) $^ $(LDLIBS) -o $@$(EXESUFFIX)
 ARCHIVE.cmdline     = $(AR) $(ARFLAGS) $@ $^ && $(RANLIB) $@
+
+LINK.o.dll.cmdline      = $(LINK.o) $^ $(LDLIBS) -o $@$(WINDLLSUFFIX)
 
 %$(OBJSUFFIX):%.c
 	$(COMPILE.c.cmdline)
@@ -133,7 +137,7 @@ decoder$(EXESUFFIX): $(DECODER_OBJS)
 signalcompare$(EXESUFFIX): $(SIGNALCMP_OBJS)
 	$(LINK.o.cmdline)
 
-decoderdll$(EXESUFFIX): $(DECODER_DLL_OBJS)
+decoderdll: $(DECODER_DLL_OBJS)
 	$(LINK.o.cmdline)
 
 clean:

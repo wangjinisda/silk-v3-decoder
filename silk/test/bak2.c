@@ -194,7 +194,8 @@ static void print_usage(char* argv[]) {
     printf( "\n-quiet       : Print out just some basic values" );
     printf( "\n" );
 }
-__declspec(dllexport) int silkDecoderToPcm( SKP_uint8 *jBuffers, size_t jbuffersSize, SKP_int16 *outBuffer)
+
+int main( int argc, char* argv[] )
 {
     unsigned long tottime, starttime;
     double    filetime;
@@ -208,6 +209,8 @@ __declspec(dllexport) int silkDecoderToPcm( SKP_uint8 *jBuffers, size_t jbuffers
     SKP_int16 nBytesFEC;
     SKP_int16 nBytesPerPacket[ MAX_LBRR_DELAY + 1 ], totBytes;
     SKP_int16 out[ ( ( FRAME_LENGTH_MS * MAX_API_FS_KHZ ) << 1 ) * MAX_INPUT_FRAMES ], *outPtr;
+    char      speechOutFileName[ 150 ], bitInFileName[ 150 ];
+    FILE      *bitInFile, *speechOutFile;
     SKP_int32 packetSize_ms=0, API_Fs_Hz = 0;
     SKP_int32 decSizeBytes;
     void      *psDec;
@@ -223,29 +226,71 @@ __declspec(dllexport) int silkDecoderToPcm( SKP_uint8 *jBuffers, size_t jbuffers
     SKP_int16 *outArr = NULL;
     size_t outArrLen = 0;
 
+    if( argc < 3 ) {
+        print_usage( argv );
+        exit( 0 );
+    }
+
     /* default settings */
     quiet     = 0;
     loss_prob = 0.0f;
 
     /* get arguments */
-    
+    args = 1;
+    strcpy( bitInFileName, argv[ args ] );
+    args++;
+    strcpy( speechOutFileName, argv[ args ] );
+    args++;
+    while( args < argc ) {
+        if( SKP_STR_CASEINSENSITIVE_COMPARE( argv[ args ], "-loss" ) == 0 ) {
+            sscanf( argv[ args + 1 ], "%f", &loss_prob );
+            args += 2;
+        } else if( SKP_STR_CASEINSENSITIVE_COMPARE( argv[ args ], "-Fs_API" ) == 0 ) {
+            sscanf( argv[ args + 1 ], "%d", &API_Fs_Hz );
+            args += 2;
+        } else if( SKP_STR_CASEINSENSITIVE_COMPARE( argv[ args ], "-quiet" ) == 0 ) {
+            quiet = 1;
+            args++;
+        } else {
+            printf( "Error: unrecognized setting: %s\n\n", argv[ args ] );
+            print_usage( argv );
+            exit( 0 );
+        }
+    }
+
     if( !quiet ) {
         printf("********** Silk Decoder (Fixed Point) v %s ********************\n", SKP_Silk_SDK_get_version());
         printf("********** Compiled for %d bit cpu *******************************\n", (int)sizeof(void*) * 8 );
+        printf( "Input:                       %s\n", bitInFileName );
+        printf( "Output:                      %s\n", speechOutFileName );
+    }
+
+    /* Open files */
+    bitInFile = fopen( bitInFileName, "rb" );
+    if( bitInFile == NULL ) {
+        printf( "Error: could not open input file %s\n", bitInFileName );
+        exit( 0 );
     }
 
 
-    jBuffer = jBuffers;
-    jSize = jbuffersSize;
-    printf( "j-test:  file read    bufer first:%i  file len: %d\n", jBuffer[0], jSize);
+    fseek(bitInFile, 0, SEEK_END); 
+    size_t jFileSize = ftell(bitInFile); 
+    fseek(bitInFile, 0, SEEK_SET);
+    jBuffer = malloc(jFileSize);
+    jSize = readFileAsByteArray(jBuffer, jFileSize, bitInFile);
+    printf( "j-test:  file read    bufer first:%i  file len: %d\n", jBuffer[0], jFileSize);
+
+    fseek(bitInFile, 0, SEEK_SET);
 
     /* Check Silk header */
     {
         char header_buf[ 50 ];
+        //fread(header_buf, sizeof(char), 1, bitInFile);
         getCharBufferFromCurrentPos(header_buf, 1, &currentPos, jBuffer);
 
         header_buf[ strlen( "" ) ] = '\0'; /* Terminate with a null character */
         if( strcmp( header_buf, "" ) != 0 ) {
+           //counter = fread( header_buf, sizeof( char ), strlen( "!SILK_V3" ), bitInFile );
            // for test from jin
            getCharBufferFromCurrentPos(header_buf, strlen( "!SILK_V3" ), &currentPos, jBuffer);
 
@@ -256,6 +301,7 @@ __declspec(dllexport) int silkDecoderToPcm( SKP_uint8 *jBuffers, size_t jbuffers
                exit( 0 );
            }
         } else {
+           //counter = fread( header_buf, sizeof( char ), strlen( "#!SILK_V3" ), bitInFile );
 
            // for test from jin
            getCharBufferFromCurrentPos(header_buf, strlen( "#!SILK_V3" ), &currentPos, jBuffer);
@@ -266,6 +312,12 @@ __declspec(dllexport) int silkDecoderToPcm( SKP_uint8 *jBuffers, size_t jbuffers
                exit( 0 );
            }
         }
+    }
+
+    speechOutFile = fopen( speechOutFileName, "wb" );
+    if( speechOutFile == NULL ) {
+        printf( "Error: could not open output file %s\n", speechOutFileName );
+        exit( 0 );
     }
 
     /* Set the samplingrate that is requested for the output */
@@ -298,6 +350,7 @@ __declspec(dllexport) int silkDecoderToPcm( SKP_uint8 *jBuffers, size_t jbuffers
     /* Simulate the jitter buffer holding MAX_FEC_DELAY packets */
     for( i = 0; i < MAX_LBRR_DELAY; i++ ) {
         /* Read payload size */
+        //counter = fread( &nBytes, sizeof( SKP_int16 ), 1, bitInFile );
         counter = getShortBufferFromCurrentPos(&nBytes, 1, &currentPos, jBuffer);
  
         printf( "j-test:       counter    %i\n", (int)counter );
@@ -306,6 +359,8 @@ __declspec(dllexport) int silkDecoderToPcm( SKP_uint8 *jBuffers, size_t jbuffers
         swap_endian( &nBytes, 1 );
 #endif
         /* Read payload */
+        //counter = fread( payloadEnd, sizeof( SKP_uint8 ), nBytes, bitInFile );
+        //printf( "j-test:       counter primary     %i\n", counter );
         // for test from jin
         counter = getByteBufferFromCurrentPos(payloadEnd, nBytes, &currentPos, jBuffer);
         //payloadEnd = jBuf8_u;
@@ -322,6 +377,7 @@ __declspec(dllexport) int silkDecoderToPcm( SKP_uint8 *jBuffers, size_t jbuffers
 
     while( 1 ) {
         /* Read payload size */
+        //counter = fread( &nBytes, sizeof( SKP_int16 ), 1, bitInFile );
         counter = getShortBufferFromCurrentPos(&nBytes, 1, &currentPos, jBuffer);
 #ifdef _SYSTEM_IS_BIG_ENDIAN
         swap_endian( &nBytes, 1 );
@@ -334,6 +390,9 @@ __declspec(dllexport) int silkDecoderToPcm( SKP_uint8 *jBuffers, size_t jbuffers
             break;
         }
 
+
+        /* Read payload */
+        // counter = fread( payloadEnd, sizeof( SKP_uint8 ), nBytes, bitInFile );
         counter = getByteBufferFromCurrentPos(payloadEnd, nBytes, &currentPos, jBuffer);
         //printf( "j-test:       &currentPos     %i\n", currentPos );
         if( ( SKP_int16 )counter < nBytes ) {
@@ -540,9 +599,7 @@ __declspec(dllexport) int silkDecoderToPcm( SKP_uint8 *jBuffers, size_t jbuffers
         }
     }
 
-    //fwrite( outArr, sizeof( SKP_int16 ), outArrLen, speechOutFile );
-    outBuffer =  outArr;
-    
+    fwrite( outArr, sizeof( SKP_int16 ), outArrLen, speechOutFile );
 
     if( !quiet ) {
         printf( "\nDecoding Finished \n" );
@@ -553,6 +610,10 @@ __declspec(dllexport) int silkDecoderToPcm( SKP_uint8 *jBuffers, size_t jbuffers
     free( jBuffer );
     free( outArr );
 
+    /* Close files */
+    fclose( speechOutFile );
+    fclose( bitInFile );
+
     filetime = totPackets * 1e-3 * packetSize_ms;
     if( !quiet ) {
         printf("\nFile length:                 %.3f s", filetime);
@@ -562,15 +623,5 @@ __declspec(dllexport) int silkDecoderToPcm( SKP_uint8 *jBuffers, size_t jbuffers
         /* print time and % of realtime */
         printf( "%.3f %.3f %d\n", 1e-6 * tottime, 1e-4 * tottime / filetime, totPackets );
     }
-    return 0;
-}
-
-__declspec(dllexport) int __cdecl getResult(SKP_int32 num){
-    return num * 2;
-}
-
-
-int main(){
-    printf("File length:                 %.3f s", 112);
     return 0;
 }
