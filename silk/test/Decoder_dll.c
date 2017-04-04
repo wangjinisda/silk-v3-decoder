@@ -112,41 +112,54 @@ size_t readFileAsByteArray(void *ptr, size_t lenOfChar, FILE *fp)
     return fileSize;
 }
 
-static SKP_uint8 *jBuffer = NULL;
-static size_t jSize = 0;
-static SKP_uint8 *JPayload;
-static size_t  currentPos = 0;
-static size_t  lenForRead = 0; 
-
-static SKP_int16 *outArr;
-
 void init()
 {
 
 }
+size_t ConCatOutArr(SKP_int16 *arr, size_t len, SKP_int16 **outArr, size_t *outArrLen){
+    size_t s = sizeof(SKP_int16);
+    if(*outArr == NULL){
+        SKP_int16 *p = malloc(s * (len));
+        memcpy(p, arr, len * s);
+        *outArrLen = len;
+        //printf( "done!");
+        *outArr = p;
+    }else{
+        SKP_int16 *p = malloc(s * (len + *outArrLen));
+        memcpy(p, *outArr, *outArrLen * s);
+        memcpy(p + *outArrLen, arr, len * s);
+        *outArrLen = *outArrLen + len;
+        //printf( "done!!");
+        //free(arr);
+        free(*outArr);
+        *outArr = p;
+    }
 
-size_t getCharBufferFromCurrentPos(char *buffer, size_t len)
+    return *outArrLen;
+}
+
+size_t getCharBufferFromCurrentPos(char *buffer, size_t len, size_t *currentPos, SKP_uint8 *jBuffer)
 {
     if(jBuffer !=NULL){
-        lenForRead = 1;
-        size_t byteLen = len * lenForRead*sizeof(char);
-        memcpy(buffer, &jBuffer[currentPos], byteLen);
-        currentPos += byteLen;
+        //lenForRead = 1;
+        size_t byteLen = len * sizeof(char);
+        memcpy(buffer, &jBuffer[*currentPos], byteLen);
+        *currentPos += byteLen;
         return len;
     }
     return 0;
 }
 
 
-size_t  getShortBufferFromCurrentPos(SKP_int16 *buffer, size_t len)
+size_t  getShortBufferFromCurrentPos(SKP_int16 *buffer, size_t len, size_t *currentPos, SKP_uint8 *jBuffer)
 {
     if(jBuffer !=NULL){
-        lenForRead = 2;
-        size_t byteLen = len * lenForRead*sizeof(char);
-        SKP_int8 jBuf8[ len * lenForRead ];
+        // lenForRead = 2;
+        size_t byteLen = len * sizeof(SKP_int16);
+        SKP_int8 jBuf8[ len * sizeof(SKP_int16) ];
         //SKP_int16 jBuf16;
-        memcpy(jBuf8, &jBuffer[currentPos], byteLen);
-        currentPos += byteLen;
+        memcpy(jBuf8, &jBuffer[*currentPos], byteLen);
+        *currentPos += byteLen;
         for( int i = 0; i < len; i++ ) {
              buffer[i] = (SKP_int16)((jBuf8[ 2*i +1 ] << 8 ) | jBuf8[ 2 * i ]);
         }   
@@ -156,13 +169,14 @@ size_t  getShortBufferFromCurrentPos(SKP_int16 *buffer, size_t len)
 }
 
 
-size_t getByteBufferFromCurrentPos(SKP_uint8 *buffer, size_t len)
-{
+size_t getByteBufferFromCurrentPos(SKP_uint8 *buffer, size_t len, size_t *currentPos, SKP_uint8 *jBuffer)
+{ 
     if(jBuffer !=NULL){
-        lenForRead = 1;
-        size_t byteLen = len * lenForRead * sizeof(char);
-        memcpy(buffer, &jBuffer[currentPos], byteLen);
-        currentPos += byteLen;
+        // lenForRead = 1;
+        size_t byteLen = len * sizeof(SKP_uint8);
+        memcpy(buffer, &jBuffer[*currentPos], byteLen);
+        *currentPos += byteLen;
+        //printf( "j-test:   *currentPos:  %d\n",  *currentPos);
         return len;
     }
     return 0;
@@ -203,6 +217,14 @@ int main( int argc, char* argv[] )
     SKP_float loss_prob;
     SKP_int32 frames, lost, quiet;
     SKP_SILK_SDK_DecControlStruct DecControl;
+
+
+    SKP_uint8 *jBuffer = NULL;
+    size_t jSize = 0;
+    size_t  currentPos = 0;
+
+    SKP_int16 *outArr = NULL;
+    size_t outArrLen = 0;
 
     if( argc < 3 ) {
         print_usage( argv );
@@ -257,9 +279,6 @@ int main( int argc, char* argv[] )
     jBuffer = malloc(jFileSize);
     jSize = readFileAsByteArray(jBuffer, jFileSize, bitInFile);
     printf( "j-test:  file read    bufer first:%i  file len: %d\n", jBuffer[0], jFileSize);
-    // add 
-    SKP_uint8 JPayloadBuf[    MAX_BYTES_PER_FRAME * MAX_INPUT_FRAMES * ( MAX_LBRR_DELAY + 1 ) ];
-    JPayload = JPayloadBuf;
 
     fseek(bitInFile, 0, SEEK_SET);
 
@@ -267,20 +286,13 @@ int main( int argc, char* argv[] )
     {
         char header_buf[ 50 ];
         //fread(header_buf, sizeof(char), 1, bitInFile);
-         // for test from jin
-        char jHeader_buf[50];
-        getCharBufferFromCurrentPos(header_buf, 1);
-
-        printf( "j-test:    header_buf        %s\n", header_buf );
-        printf( "j-test:    jHeader_buf       %s\n", jHeader_buf );
+        getCharBufferFromCurrentPos(header_buf, 1, &currentPos, jBuffer);
 
         header_buf[ strlen( "" ) ] = '\0'; /* Terminate with a null character */
         if( strcmp( header_buf, "" ) != 0 ) {
            //counter = fread( header_buf, sizeof( char ), strlen( "!SILK_V3" ), bitInFile );
            // for test from jin
-           getCharBufferFromCurrentPos(header_buf, strlen( "!SILK_V3" ));
-           printf( "j-test:       header_buf     %s\n", header_buf );
-           printf( "j-test:       jHeader_buf    %s\n", jHeader_buf );
+           getCharBufferFromCurrentPos(header_buf, strlen( "!SILK_V3" ), &currentPos, jBuffer);
 
            header_buf[ strlen( "!SILK_V3" ) ] = '\0'; /* Terminate with a null character */
            if( strcmp( header_buf, "!SILK_V3" ) != 0 ) {
@@ -292,11 +304,7 @@ int main( int argc, char* argv[] )
            //counter = fread( header_buf, sizeof( char ), strlen( "#!SILK_V3" ), bitInFile );
 
            // for test from jin
-           getCharBufferFromCurrentPos(header_buf, strlen( "#!SILK_V3" ));
-
-           printf( "j-test:       header_buf     %s\n", header_buf );
-           printf( "j-test:       jHeader_buf    %s\n", jHeader_buf );
-
+           getCharBufferFromCurrentPos(header_buf, strlen( "#!SILK_V3" ), &currentPos, jBuffer);
            header_buf[ strlen( "#!SILK_V3" ) ] = '\0'; /* Terminate with a null character */
            if( strcmp( header_buf, "#!SILK_V3" ) != 0 ) {
                /* Non-equal strings */
@@ -343,7 +351,7 @@ int main( int argc, char* argv[] )
     for( i = 0; i < MAX_LBRR_DELAY; i++ ) {
         /* Read payload size */
         //counter = fread( &nBytes, sizeof( SKP_int16 ), 1, bitInFile );
-        counter = getShortBufferFromCurrentPos(&nBytes, 1);
+        counter = getShortBufferFromCurrentPos(&nBytes, 1, &currentPos, jBuffer);
  
         printf( "j-test:       counter    %i\n", (int)counter );
 
@@ -354,7 +362,7 @@ int main( int argc, char* argv[] )
         //counter = fread( payloadEnd, sizeof( SKP_uint8 ), nBytes, bitInFile );
         //printf( "j-test:       counter primary     %i\n", counter );
         // for test from jin
-        counter = getByteBufferFromCurrentPos(payloadEnd, nBytes);
+        counter = getByteBufferFromCurrentPos(payloadEnd, nBytes, &currentPos, jBuffer);
         //payloadEnd = jBuf8_u;
         //printf( "j-test:       jBuf8_u     %hu\n", jBuf8_u[0] );
         printf( "j-test:       counter     %i\n", counter );
@@ -370,7 +378,7 @@ int main( int argc, char* argv[] )
     while( 1 ) {
         /* Read payload size */
         //counter = fread( &nBytes, sizeof( SKP_int16 ), 1, bitInFile );
-        counter = getShortBufferFromCurrentPos(&nBytes, 1);
+        counter = getShortBufferFromCurrentPos(&nBytes, 1, &currentPos, jBuffer);
 #ifdef _SYSTEM_IS_BIG_ENDIAN
         swap_endian( &nBytes, 1 );
 #endif
@@ -378,10 +386,20 @@ int main( int argc, char* argv[] )
             break;
         }
 
+        if(currentPos >= jSize){
+            break;
+        }
+
+
         /* Read payload */
         // counter = fread( payloadEnd, sizeof( SKP_uint8 ), nBytes, bitInFile );
-        counter = getByteBufferFromCurrentPos(payloadEnd, nBytes);
+        counter = getByteBufferFromCurrentPos(payloadEnd, nBytes, &currentPos, jBuffer);
+        //printf( "j-test:       &currentPos     %i\n", currentPos );
         if( ( SKP_int16 )counter < nBytes ) {
+            break;
+        }
+
+        if(currentPos >= jSize){
             break;
         }
 
@@ -467,8 +485,10 @@ int main( int argc, char* argv[] )
 #ifdef _SYSTEM_IS_BIG_ENDIAN
         swap_endian( out, tot_len );
 #endif
-        size_t jlen = fwrite( out, sizeof( SKP_int16 ), tot_len, speechOutFile );
-        printf( "j-test:       out len    %i\n", (int)jlen );
+        //size_t jlen1 = fwrite( out, sizeof( SKP_int16 ), tot_len, speechOutFile );
+        //printf( "j-test:       out len    %i\n", (int)jlen );
+        size_t jlen = ConCatOutArr(out, tot_len, &outArr, &outArrLen);
+        //printf( "j-test:       out2 len    %i\n", (int)jlen );
 
         /* Update buffer */
         totBytes = 0;
@@ -560,10 +580,11 @@ int main( int argc, char* argv[] )
 #ifdef _SYSTEM_IS_BIG_ENDIAN
         swap_endian( out, tot_len );
 #endif
-        //fwrite( out, sizeof( SKP_int16 ), tot_len, speechOutFile );
-        size_t jlen = fwrite( out, sizeof( SKP_int16 ), tot_len, speechOutFile );
-        printf( "j-test:       out len    %i\n", (int)jlen );
-
+        //size_t jlen1 = fwrite( out, sizeof( SKP_int16 ), tot_len, speechOutFile );
+       
+       // printf( "j-test:       out len    %i\n", (int)jlen );
+        size_t jlen = ConCatOutArr(out, tot_len, &outArr, &outArrLen);
+        //printf( "j-test:       out len    %i\n", (int)jlen );
         /* Update Buffer */
         totBytes = 0;
         for( i = 0; i < MAX_LBRR_DELAY; i++ ) {
@@ -578,6 +599,8 @@ int main( int argc, char* argv[] )
         }
     }
 
+    fwrite( outArr, sizeof( SKP_int16 ), outArrLen, speechOutFile );
+
     if( !quiet ) {
         printf( "\nDecoding Finished \n" );
     }
@@ -585,6 +608,7 @@ int main( int argc, char* argv[] )
     /* Free decoder */
     free( psDec );
     free( jBuffer );
+    free( outArr );
 
     /* Close files */
     fclose( speechOutFile );
