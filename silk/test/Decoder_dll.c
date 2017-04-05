@@ -101,7 +101,6 @@ static SKP_int32 rand_seed = 1;
 
 size_t readFileAsByteArray(void *ptr, size_t lenOfChar, FILE *fp)
 {
-
     /*
     fseek(fp, 0, SEEK_END); 
     size = ftell(fp); 
@@ -114,8 +113,8 @@ size_t readFileAsByteArray(void *ptr, size_t lenOfChar, FILE *fp)
 
 void init()
 {
-
 }
+
 size_t ConCatOutArr(SKP_int16 *arr, size_t len, SKP_int16 **outArr, size_t *outArrLen){
     size_t s = sizeof(SKP_int16);
     if(*outArr == NULL){
@@ -194,12 +193,13 @@ static void print_usage(char* argv[]) {
     printf( "\n-quiet       : Print out just some basic values" );
     printf( "\n" );
 }
-__declspec(dllexport) int __cdecl SilkDecoderToPcm( SKP_uint8 *jBuffers, size_t jbuffersSize, SKP_int16 *outBuffer)
+
+__declspec(dllexport) int __cdecl SilkDecoderToPcm( SKP_uint8 *jBuffers, size_t jbuffersSize, SKP_int16 **outBuffer, size_t *outSize)
 {
     unsigned long tottime, starttime;
     double    filetime;
     size_t    counter;
-    SKP_int32 args, totPackets, i, k;
+    SKP_int32 totPackets, i, k;
     SKP_int16 ret, len, tot_len;
     SKP_int16 nBytes;
     SKP_uint8 payload[    MAX_BYTES_PER_FRAME * MAX_INPUT_FRAMES * ( MAX_LBRR_DELAY + 1 ) ];
@@ -428,7 +428,7 @@ __declspec(dllexport) int __cdecl SilkDecoderToPcm( SKP_uint8 *jBuffers, size_t 
 #endif
         //size_t jlen1 = fwrite( out, sizeof( SKP_int16 ), tot_len, speechOutFile );
         //printf( "j-test:       out len    %i\n", (int)jlen );
-        size_t jlen = ConCatOutArr(out, tot_len, &outArr, &outArrLen);
+        ConCatOutArr(out, tot_len, &outArr, &outArrLen);
         //printf( "j-test:       out2 len    %i\n", (int)jlen );
 
         /* Update buffer */
@@ -523,8 +523,8 @@ __declspec(dllexport) int __cdecl SilkDecoderToPcm( SKP_uint8 *jBuffers, size_t 
 #endif
         //size_t jlen1 = fwrite( out, sizeof( SKP_int16 ), tot_len, speechOutFile );
        
-       // printf( "j-test:       out len    %i\n", (int)jlen );
-        size_t jlen = ConCatOutArr(out, tot_len, &outArr, &outArrLen);
+        // printf( "j-test:       out len    %i\n", (int)jlen );
+        ConCatOutArr(out, tot_len, &outArr, &outArrLen);
         //printf( "j-test:       out len    %i\n", (int)jlen );
         /* Update Buffer */
         totBytes = 0;
@@ -541,17 +541,17 @@ __declspec(dllexport) int __cdecl SilkDecoderToPcm( SKP_uint8 *jBuffers, size_t 
     }
 
     //fwrite( outArr, sizeof( SKP_int16 ), outArrLen, speechOutFile );
-    outBuffer =  outArr;
+    *outBuffer =  outArr;
+    *outSize = outArrLen;
     
-
     if( !quiet ) {
         printf( "\nDecoding Finished \n" );
     }
 
     /* Free decoder */
     free( psDec );
-    free( jBuffer );
-    free( outArr );
+    //free( jBuffer );
+    //free( outArr );
 
     filetime = totPackets * 1e-3 * packetSize_ms;
     if( !quiet ) {
@@ -565,12 +565,70 @@ __declspec(dllexport) int __cdecl SilkDecoderToPcm( SKP_uint8 *jBuffers, size_t 
     return 0;
 }
 
-__declspec(dllexport) int __cdecl GetResult(SKP_int32 num){
+__declspec(dllexport) int __cdecl GetResult(SKP_int32 num, SKP_uint8 **jBuffers){
+    //jBuffers[0] =  99;
+    *jBuffers = malloc(10);
+    *jBuffers[0] = 88;
+    
     return num * 2;
 }
 
 
-int main(){
-    printf("File length:                 %.3f s", 112);
+int main(int argc, char* argv[] ){
+
+    FILE      *bitInFile, *speechOutFile;
+    SKP_int16 *out;
+    char      speechOutFileName[ 150 ], bitInFileName[ 150 ];
+    SKP_int32 args;
+    SKP_uint8 *jBuffer = NULL;
+    size_t jSize = 0;
+    size_t outLen = 0;
+
+    if( argc < 3 ) {
+        print_usage( argv );
+        exit( 0 );
+    }
+
+    args = 1;
+    strcpy( bitInFileName, argv[ args ] );
+    args++;
+    strcpy( speechOutFileName, argv[ args ] );
+
+    /* Open files */
+    bitInFile = fopen( bitInFileName, "rb" );
+    if( bitInFile == NULL ) {
+        printf( "Error: could not open input file %s\n", bitInFileName );
+        exit( 0 );
+    }
+
+    speechOutFile = fopen( speechOutFileName, "wb" );
+    if( speechOutFile == NULL ) {
+        printf( "Error: could not open output file %s\n", speechOutFileName );
+        exit( 0 );
+    }
+
+    fseek(bitInFile, 0, SEEK_END); 
+    size_t jFileSize = ftell(bitInFile); 
+    fseek(bitInFile, 0, SEEK_SET);
+    jBuffer = malloc(jFileSize);
+    jSize = readFileAsByteArray(jBuffer, jFileSize, bitInFile);
+    printf( "j-test:  file read    bufer first:%i  file len: %d\n", jBuffer[0], jFileSize);
+
+    fseek(bitInFile, 0, SEEK_SET);
+
+    SilkDecoderToPcm(jBuffer, jSize, &out, &outLen);
+    printf( "j-test:  file read    out first:%i  outLen: %d\n", out[0], outLen);
+
+    fwrite( out, sizeof( SKP_int16 ), outLen, speechOutFile);
+
+    /* Close files */
+    fclose( speechOutFile );
+    fclose( bitInFile );
+
+    /* Free decoder */
+    free( jBuffer );
+    free( out );
+
+
     return 0;
 }

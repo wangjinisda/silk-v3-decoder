@@ -65,7 +65,11 @@ LDLIBS  += $(call ldlibs-from-libs,$(LIBS))
 # add for compile in cgwin
 LDLIBS += -static-libgcc
 LDLIBS += -static-libstdc++
-#LDLIBS += -shared
+
+LDDLLS += $(call ldlibs-from-libs,$(LIBS))
+LDDLLS += -static-libgcc
+LDDLLS += -static-libstdc++
+LDDLLS += -shared
 
 COMPILE.c.cmdline   = $(CC) -c $(CFLAGS) $(ADDED_CFLAGS) -o $@ $<
 COMPILE.S.cmdline   = $(CC) -c $(CFLAGS) $(ADDED_CFLAGS) -o $@ $<
@@ -74,7 +78,8 @@ LINK.o              = $(CXX) $(LDPREFLAGS) $(LDFLAGS)
 LINK.o.cmdline      = $(LINK.o) $^ $(LDLIBS) -o $@$(EXESUFFIX)
 ARCHIVE.cmdline     = $(AR) $(ARFLAGS) $@ $^ && $(RANLIB) $@
 
-LINK.o.dll.cmdline      = $(LINK.o) $^ $(LDLIBS) -o $@$(WINDLLSUFFIX)
+LINK.o.dll          = $(CC) $(LDPREFLAGS) $(LDFLAGS)
+LINK.o.dll.cmdline  = $(LINK.o.dll) $^ $(LDDLLS) -o $@$(WINDLLSUFFIX)
 
 %$(OBJSUFFIX):%.c
 	$(COMPILE.c.cmdline)
@@ -144,11 +149,14 @@ signalcompare$(EXESUFFIX): $(SIGNALCMP_OBJS)
 	$(LINK.o.cmdline)
 
 decoderdll: $(DECODER_DLL_OBJS)
+	$(LINK.o.dll.cmdline)
+
+decoderdllexe: $(TARGET) $(DECODER_DLL_OBJS)
 	$(LINK.o.cmdline)
 
 clean:
 	$(RM) $(TARGET)* $(OBJS) $(ENCODER_OBJS) $(DECODER_OBJS) \
 		  $(SIGNALCMP_OBJS) $(TEST_OBJS) \
 		  encoder$(EXESUFFIX) decoder$(EXESUFFIX) signalcompare$(EXESUFFIX) \
-		  decoderdll$(EXESUFFIX) $(DECODER_DLL_OBJS)
+		  decoderdll$(EXESUFFIX) $(DECODER_DLL_OBJS)   decoderdll$(WINDLLSUFFIX) decoderdllexe$(EXESUFFIX)
 
