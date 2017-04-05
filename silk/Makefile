@@ -7,6 +7,12 @@
 
 #Platform detection and settings
 
+#
+# fot win32 please set following env and excutables
+# export PATH=$PATH:/cygdrive/C/MinGW/bin/
+# mingw32-make.exe
+#
+
 BUILD_OS := $(shell uname | sed -e 's/^.*Darwin.*/MacOS-X/ ; s/^.*CYGWIN.*/Windows/')
 
 BUILD_ARCHITECTURE := $(shell uname -m | sed -e 's/i686/i386/')

@@ -194,7 +194,7 @@ static void print_usage(char* argv[]) {
     printf( "\n-quiet       : Print out just some basic values" );
     printf( "\n" );
 }
-__declspec(dllexport) int silkDecoderToPcm( SKP_uint8 *jBuffers, size_t jbuffersSize, SKP_int16 *outBuffer)
+__declspec(dllexport) int __cdecl SilkDecoderToPcm( SKP_uint8 *jBuffers, size_t jbuffersSize, SKP_int16 *outBuffer)
 {
     unsigned long tottime, starttime;
     double    filetime;
@@ -565,7 +565,7 @@ __declspec(dllexport) int silkDecoderToPcm( SKP_uint8 *jBuffers, size_t jbuffers
     return 0;
 }
 
-__declspec(dllexport) int __cdecl getResult(SKP_int32 num){
+__declspec(dllexport) int __cdecl GetResult(SKP_int32 num){
     return num * 2;
 }
 
