@@ -270,7 +270,7 @@ __declspec(dllexport) int __cdecl SilkDecoderToPcm( SKP_uint8 *jBuffers, size_t 
 
     /* Set the samplingrate that is requested for the output */
     if( API_Fs_Hz == 0 ) {
-        DecControl.API_sampleRate = 24000;
+        DecControl.API_sampleRate = 16000;
     } else {
         DecControl.API_sampleRate = API_Fs_Hz;
     }
@@ -571,6 +571,21 @@ __declspec(dllexport) int __cdecl GetResult(SKP_int32 num, SKP_uint8 **jBuffers)
     *jBuffers[0] = 88;
     
     return num * 2;
+}
+
+__declspec(dllexport) void __cdecl CleanBytePointer(SKP_uint8 *ptr){
+    //jBuffers[0] =  99;
+   free( ptr );   
+}
+
+__declspec(dllexport) void __cdecl CleanShortPointer(SKP_int16 *ptr){
+    //jBuffers[0] =  99;
+   free( ptr );   
+}
+
+__declspec(dllexport) void __cdecl CleanIntPointer(SKP_int32 *ptr){
+    //jBuffers[0] =  99;
+   free( ptr );   
 }
 
 
