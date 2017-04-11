@@ -194,7 +194,7 @@ static void print_usage(char* argv[]) {
     printf( "\n" );
 }
 
-__declspec(dllexport) int __cdecl SilkDecoderToPcm( SKP_uint8 *jBuffers, size_t jbuffersSize, SKP_int16 **outBuffer, size_t *outSize)
+__declspec(dllexport) int __cdecl SilkDecoderToPcm( SKP_uint8 *jBuffers, size_t jbuffersSize, SKP_int16 **outBuffer, size_t *outSize, int sampleRate)
 {
     unsigned long tottime, starttime;
     double    filetime;
@@ -224,8 +224,9 @@ __declspec(dllexport) int __cdecl SilkDecoderToPcm( SKP_uint8 *jBuffers, size_t 
     size_t outArrLen = 0;
 
     /* default settings */
-    quiet     = 0;
+    quiet     = 1;
     loss_prob = 0.0f;
+    API_Fs_Hz = sampleRate;
 
     /* get arguments */
     
@@ -299,8 +300,9 @@ __declspec(dllexport) int __cdecl SilkDecoderToPcm( SKP_uint8 *jBuffers, size_t 
     for( i = 0; i < MAX_LBRR_DELAY; i++ ) {
         /* Read payload size */
         counter = getShortBufferFromCurrentPos(&nBytes, 1, &currentPos, jBuffer);
- 
-        printf( "j-test:       counter    %i\n", (int)counter );
+        if( !quiet ) {
+            printf( "j-test:       counter    %i\n", (int)counter );
+        }
 
 #ifdef _SYSTEM_IS_BIG_ENDIAN
         swap_endian( &nBytes, 1 );
@@ -310,7 +312,9 @@ __declspec(dllexport) int __cdecl SilkDecoderToPcm( SKP_uint8 *jBuffers, size_t 
         counter = getByteBufferFromCurrentPos(payloadEnd, nBytes, &currentPos, jBuffer);
         //payloadEnd = jBuf8_u;
         //printf( "j-test:       jBuf8_u     %hu\n", jBuf8_u[0] );
-        printf( "j-test:       counter     %i\n", counter );
+        if( !quiet ) {
+            printf( "j-test:       counter     %i\n", counter );
+        }
 
         if( ( SKP_int16 )counter < nBytes ) {
             break;
@@ -631,7 +635,7 @@ int main(int argc, char* argv[] ){
 
     fseek(bitInFile, 0, SEEK_SET);
 
-    SilkDecoderToPcm(jBuffer, jSize, &out, &outLen);
+    SilkDecoderToPcm(jBuffer, jSize, &out, &outLen, 16000);
     printf( "j-test:  file read    out first:%i  outLen: %d\n", out[0], outLen);
 
     fwrite( out, sizeof( SKP_int16 ), outLen, speechOutFile);
