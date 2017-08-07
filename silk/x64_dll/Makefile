@@ -23,7 +23,7 @@ LIBSUFFIX = .a
 OBJSUFFIX = .o
 WINDLLSUFFIX = .dll
 
-CC     = $(TOOLCHAIN_PREFIX)gcc$(TOOLCHAIN_SUFFIX)
+CC     = $(TOOLCHAIN_PREFIX)"C:\Program Files\mingw-w64\x86_64-7.1.0-posix-seh-rt_v5-rev1\mingw64\bin\gcc.exe"$(TOOLCHAIN_SUFFIX)
 CXX    = $(TOOLCHAIN_PREFIX)g++$(TOOLCHAIN_SUFFIX)
 AR     = $(TOOLCHAIN_PREFIX)ar
 RANLIB = $(TOOLCHAIN_PREFIX)ranlib
@@ -60,7 +60,7 @@ CFLAGS  += $(call cppflags-from-defines,$(CDEFINES))
 CFLAGS  += $(call cppflags-from-defines,$(ADDED_DEFINES))
 CFLAGS  += $(call cppflags-from-includes,$(CINCLUDES))
 
-# CFLAGS  += -m64
+CFLAGS  += -m64
 LDFLAGS += $(call ldflags-from-ldlibdirs,$(LDLIBDIRS))
 LDLIBS  += $(call ldlibs-from-libs,$(LIBS))
 

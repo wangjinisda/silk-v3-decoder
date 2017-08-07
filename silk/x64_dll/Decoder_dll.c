@@ -101,7 +101,6 @@ static SKP_int32 rand_seed = 1;
 
 size_t readFileAsByteArray(void *ptr, size_t lenOfChar, FILE *fp)
 {
-
     /*
     fseek(fp, 0, SEEK_END); 
     size = ftell(fp); 
@@ -114,8 +113,8 @@ size_t readFileAsByteArray(void *ptr, size_t lenOfChar, FILE *fp)
 
 void init()
 {
-
 }
+
 size_t ConCatOutArr(SKP_int16 *arr, size_t len, SKP_int16 **outArr, size_t *outArrLen){
     size_t s = sizeof(SKP_int16);
     if(*outArr == NULL){
@@ -195,12 +194,12 @@ static void print_usage(char* argv[]) {
     printf( "\n" );
 }
 
-int main( int argc, char* argv[] )
+__declspec(dllexport) int __cdecl SilkDecoderToPcm( SKP_uint8 *jBuffers, size_t jbuffersSize, SKP_int16 **outBuffer, size_t *outSize, int sampleRate)
 {
     unsigned long tottime, starttime;
     double    filetime;
     size_t    counter;
-    SKP_int32 args, totPackets, i, k;
+    SKP_int32 totPackets, i, k;
     SKP_int16 ret, len, tot_len;
     SKP_int16 nBytes;
     SKP_uint8 payload[    MAX_BYTES_PER_FRAME * MAX_INPUT_FRAMES * ( MAX_LBRR_DELAY + 1 ) ];
@@ -209,8 +208,6 @@ int main( int argc, char* argv[] )
     SKP_int16 nBytesFEC;
     SKP_int16 nBytesPerPacket[ MAX_LBRR_DELAY + 1 ], totBytes;
     SKP_int16 out[ ( ( FRAME_LENGTH_MS * MAX_API_FS_KHZ ) << 1 ) * MAX_INPUT_FRAMES ], *outPtr;
-    char      speechOutFileName[ 150 ], bitInFileName[ 150 ];
-    FILE      *bitInFile, *speechOutFile;
     SKP_int32 packetSize_ms=0, API_Fs_Hz = 0;
     SKP_int32 decSizeBytes;
     void      *psDec;
@@ -226,71 +223,30 @@ int main( int argc, char* argv[] )
     SKP_int16 *outArr = NULL;
     size_t outArrLen = 0;
 
-    if( argc < 3 ) {
-        print_usage( argv );
-        exit( 0 );
-    }
-
     /* default settings */
-    quiet     = 0;
+    quiet     = 1;
     loss_prob = 0.0f;
+    API_Fs_Hz = sampleRate;
 
     /* get arguments */
-    args = 1;
-    strcpy( bitInFileName, argv[ args ] );
-    args++;
-    strcpy( speechOutFileName, argv[ args ] );
-    args++;
-    while( args < argc ) {
-        if( SKP_STR_CASEINSENSITIVE_COMPARE( argv[ args ], "-loss" ) == 0 ) {
-            sscanf( argv[ args + 1 ], "%f", &loss_prob );
-            args += 2;
-        } else if( SKP_STR_CASEINSENSITIVE_COMPARE( argv[ args ], "-Fs_API" ) == 0 ) {
-            sscanf( argv[ args + 1 ], "%d", &API_Fs_Hz );
-            args += 2;
-        } else if( SKP_STR_CASEINSENSITIVE_COMPARE( argv[ args ], "-quiet" ) == 0 ) {
-            quiet = 1;
-            args++;
-        } else {
-            printf( "Error: unrecognized setting: %s\n\n", argv[ args ] );
-            print_usage( argv );
-            exit( 0 );
-        }
-    }
-
+    
     if( !quiet ) {
         printf("********** Silk Decoder (Fixed Point) v %s ********************\n", SKP_Silk_SDK_get_version());
         printf("********** Compiled for %d bit cpu *******************************\n", (int)sizeof(void*) * 8 );
-        printf( "Input:                       %s\n", bitInFileName );
-        printf( "Output:                      %s\n", speechOutFileName );
-    }
-
-    /* Open files */
-    bitInFile = fopen( bitInFileName, "rb" );
-    if( bitInFile == NULL ) {
-        printf( "Error: could not open input file %s\n", bitInFileName );
-        exit( 0 );
     }
 
 
-    fseek(bitInFile, 0, SEEK_END); 
-    size_t jFileSize = ftell(bitInFile); 
-    fseek(bitInFile, 0, SEEK_SET);
-    jBuffer = malloc(jFileSize);
-    jSize = readFileAsByteArray(jBuffer, jFileSize, bitInFile);
-    printf( "j-test:  file read    bufer first:%i  file len: %d\n", jBuffer[0], jFileSize);
-
-    fseek(bitInFile, 0, SEEK_SET);
+    jBuffer = jBuffers;
+    jSize = jbuffersSize;
+    printf( "j-test:  file read    bufer first:%i  file len: %d\n", jBuffer[0], jSize);
 
     /* Check Silk header */
     {
         char header_buf[ 50 ];
-        //fread(header_buf, sizeof(char), 1, bitInFile);
         getCharBufferFromCurrentPos(header_buf, 1, &currentPos, jBuffer);
 
         header_buf[ strlen( "" ) ] = '\0'; /* Terminate with a null character */
         if( strcmp( header_buf, "" ) != 0 ) {
-           //counter = fread( header_buf, sizeof( char ), strlen( "!SILK_V3" ), bitInFile );
            // for test from jin
            getCharBufferFromCurrentPos(header_buf, strlen( "!SILK_V3" ), &currentPos, jBuffer);
 
@@ -301,7 +257,6 @@ int main( int argc, char* argv[] )
                exit( 0 );
            }
         } else {
-           //counter = fread( header_buf, sizeof( char ), strlen( "#!SILK_V3" ), bitInFile );
 
            // for test from jin
            getCharBufferFromCurrentPos(header_buf, strlen( "#!SILK_V3" ), &currentPos, jBuffer);
@@ -314,15 +269,9 @@ int main( int argc, char* argv[] )
         }
     }
 
-    speechOutFile = fopen( speechOutFileName, "wb" );
-    if( speechOutFile == NULL ) {
-        printf( "Error: could not open output file %s\n", speechOutFileName );
-        exit( 0 );
-    }
-
     /* Set the samplingrate that is requested for the output */
     if( API_Fs_Hz == 0 ) {
-        DecControl.API_sampleRate = 24000;
+        DecControl.API_sampleRate = 16000;
     } else {
         DecControl.API_sampleRate = API_Fs_Hz;
     }
@@ -350,22 +299,22 @@ int main( int argc, char* argv[] )
     /* Simulate the jitter buffer holding MAX_FEC_DELAY packets */
     for( i = 0; i < MAX_LBRR_DELAY; i++ ) {
         /* Read payload size */
-        //counter = fread( &nBytes, sizeof( SKP_int16 ), 1, bitInFile );
         counter = getShortBufferFromCurrentPos(&nBytes, 1, &currentPos, jBuffer);
- 
-        printf( "j-test:       counter    %i\n", (int)counter );
+        if( !quiet ) {
+            printf( "j-test:       counter    %i\n", (int)counter );
+        }
 
 #ifdef _SYSTEM_IS_BIG_ENDIAN
         swap_endian( &nBytes, 1 );
 #endif
         /* Read payload */
-        //counter = fread( payloadEnd, sizeof( SKP_uint8 ), nBytes, bitInFile );
-        //printf( "j-test:       counter primary     %i\n", counter );
         // for test from jin
         counter = getByteBufferFromCurrentPos(payloadEnd, nBytes, &currentPos, jBuffer);
         //payloadEnd = jBuf8_u;
         //printf( "j-test:       jBuf8_u     %hu\n", jBuf8_u[0] );
-        printf( "j-test:       counter     %i\n", counter );
+        if( !quiet ) {
+            printf( "j-test:       counter     %i\n", counter );
+        }
 
         if( ( SKP_int16 )counter < nBytes ) {
             break;
@@ -377,7 +326,6 @@ int main( int argc, char* argv[] )
 
     while( 1 ) {
         /* Read payload size */
-        //counter = fread( &nBytes, sizeof( SKP_int16 ), 1, bitInFile );
         counter = getShortBufferFromCurrentPos(&nBytes, 1, &currentPos, jBuffer);
 #ifdef _SYSTEM_IS_BIG_ENDIAN
         swap_endian( &nBytes, 1 );
@@ -390,9 +338,6 @@ int main( int argc, char* argv[] )
             break;
         }
 
-
-        /* Read payload */
-        // counter = fread( payloadEnd, sizeof( SKP_uint8 ), nBytes, bitInFile );
         counter = getByteBufferFromCurrentPos(payloadEnd, nBytes, &currentPos, jBuffer);
         //printf( "j-test:       &currentPos     %i\n", currentPos );
         if( ( SKP_int16 )counter < nBytes ) {
@@ -487,7 +432,7 @@ int main( int argc, char* argv[] )
 #endif
         //size_t jlen1 = fwrite( out, sizeof( SKP_int16 ), tot_len, speechOutFile );
         //printf( "j-test:       out len    %i\n", (int)jlen );
-        size_t jlen = ConCatOutArr(out, tot_len, &outArr, &outArrLen);
+        ConCatOutArr(out, tot_len, &outArr, &outArrLen);
         //printf( "j-test:       out2 len    %i\n", (int)jlen );
 
         /* Update buffer */
@@ -582,8 +527,8 @@ int main( int argc, char* argv[] )
 #endif
         //size_t jlen1 = fwrite( out, sizeof( SKP_int16 ), tot_len, speechOutFile );
        
-       // printf( "j-test:       out len    %i\n", (int)jlen );
-        size_t jlen = ConCatOutArr(out, tot_len, &outArr, &outArrLen);
+        // printf( "j-test:       out len    %i\n", (int)jlen );
+        ConCatOutArr(out, tot_len, &outArr, &outArrLen);
         //printf( "j-test:       out len    %i\n", (int)jlen );
         /* Update Buffer */
         totBytes = 0;
@@ -599,20 +544,18 @@ int main( int argc, char* argv[] )
         }
     }
 
-    fwrite( outArr, sizeof( SKP_int16 ), outArrLen, speechOutFile );
-
+    //fwrite( outArr, sizeof( SKP_int16 ), outArrLen, speechOutFile );
+    *outBuffer =  outArr;
+    *outSize = outArrLen;
+    
     if( !quiet ) {
         printf( "\nDecoding Finished \n" );
     }
 
     /* Free decoder */
     free( psDec );
-    free( jBuffer );
-    free( outArr );
-
-    /* Close files */
-    fclose( speechOutFile );
-    fclose( bitInFile );
+    //free( jBuffer );
+    //free( outArr );
 
     filetime = totPackets * 1e-3 * packetSize_ms;
     if( !quiet ) {
@@ -623,5 +566,88 @@ int main( int argc, char* argv[] )
         /* print time and % of realtime */
         printf( "%.3f %.3f %d\n", 1e-6 * tottime, 1e-4 * tottime / filetime, totPackets );
     }
+    return 0;
+}
+
+__declspec(dllexport) int __cdecl GetResult(SKP_int32 num, SKP_uint8 **jBuffers){
+    //jBuffers[0] =  99;
+    *jBuffers = malloc(10);
+    *jBuffers[0] = 88;
+    
+    return num * 2;
+}
+
+__declspec(dllexport) void __cdecl CleanBytePointer(SKP_uint8 *ptr){
+    //jBuffers[0] =  99;
+   free( ptr );   
+}
+
+__declspec(dllexport) void __cdecl CleanShortPointer(SKP_int16 *ptr){
+    //jBuffers[0] =  99;
+   free( ptr );   
+}
+
+__declspec(dllexport) void __cdecl CleanIntPointer(SKP_int32 *ptr){
+    //jBuffers[0] =  99;
+   free( ptr );   
+}
+
+
+int main(int argc, char* argv[] ){
+
+    FILE      *bitInFile, *speechOutFile;
+    SKP_int16 *out;
+    char      speechOutFileName[ 150 ], bitInFileName[ 150 ];
+    SKP_int32 args;
+    SKP_uint8 *jBuffer = NULL;
+    size_t jSize = 0;
+    size_t outLen = 0;
+
+    if( argc < 3 ) {
+        print_usage( argv );
+        exit( 0 );
+    }
+
+    args = 1;
+    strcpy( bitInFileName, argv[ args ] );
+    args++;
+    strcpy( speechOutFileName, argv[ args ] );
+
+    /* Open files */
+    bitInFile = fopen( bitInFileName, "rb" );
+    if( bitInFile == NULL ) {
+        printf( "Error: could not open input file %s\n", bitInFileName );
+        exit( 0 );
+    }
+
+    speechOutFile = fopen( speechOutFileName, "wb" );
+    if( speechOutFile == NULL ) {
+        printf( "Error: could not open output file %s\n", speechOutFileName );
+        exit( 0 );
+    }
+
+    fseek(bitInFile, 0, SEEK_END); 
+    size_t jFileSize = ftell(bitInFile); 
+    fseek(bitInFile, 0, SEEK_SET);
+    jBuffer = malloc(jFileSize);
+    jSize = readFileAsByteArray(jBuffer, jFileSize, bitInFile);
+    printf( "j-test:  file read    bufer first:%i  file len: %d\n", jBuffer[0], jFileSize);
+
+    fseek(bitInFile, 0, SEEK_SET);
+
+    SilkDecoderToPcm(jBuffer, jSize, &out, &outLen, 16000);
+    printf( "j-test:  file read    out first:%i  outLen: %d\n", out[0], outLen);
+
+    fwrite( out, sizeof( SKP_int16 ), outLen, speechOutFile);
+
+    /* Close files */
+    fclose( speechOutFile );
+    fclose( bitInFile );
+
+    /* Free decoder */
+    free( jBuffer );
+    free( out );
+
+
     return 0;
 }

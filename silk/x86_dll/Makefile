@@ -59,8 +59,6 @@ CFLAGS	+= -Wall -enable-threads -O3
 CFLAGS  += $(call cppflags-from-defines,$(CDEFINES))
 CFLAGS  += $(call cppflags-from-defines,$(ADDED_DEFINES))
 CFLAGS  += $(call cppflags-from-includes,$(CINCLUDES))
-
-# CFLAGS  += -m64
 LDFLAGS += $(call ldflags-from-ldlibdirs,$(LDLIBDIRS))
 LDLIBS  += $(call ldlibs-from-libs,$(LIBS))
 
